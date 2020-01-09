@@ -1,15 +1,63 @@
 use clipboard::{ClipboardContext, ClipboardProvider};
 use quick_xml::Reader;
 use quick_xml::events::Event;
+use clap::{*};
+use std::env;
+use log::{trace, debug, info, warn, error};
 
 
 fn main() {
+    let matches = App::new("Enum functions generator")
+        .version("v2020.1.9")
+        .author("Yangshuai <Yangshuai@Gmail.com>")
+        .about("Generate enum function that can be used in JetBrains IDEs")
+        .arg(Arg::with_name("from-lines")
+            .short("l")
+            .long("from-lines")
+            .value_name("FROM-LINES")
+            .help("Generate enum from lines of text in the clipboard")
+            .takes_value(false))
+        .arg(Arg::with_name("debug")
+            .long("debug")
+            .help("Show debugging info")
+            .takes_value(false)
+            .hidden(true))
+        .get_matches();
+
+    if matches.occurrences_of("debug") == 1 {
+        warn!("Is in debugging mode.");
+    }
+
+    env::set_var("T2E_RUST_APP_LOG", "trace");
+    pretty_env_logger::init_custom_env("T2E_RUST_APP_LOG");
+
+    if matches.occurrences_of("debug") == 1 {
+        trace!("Environment variable T2E_RUST_APP_LOG set!");
+
+        if matches.occurrences_of("from-lines") == 1 {
+            trace!("-from-lines: provided");
+        }
+    }
+
     let mut clipboard: ClipboardContext = ClipboardProvider::new().unwrap();
     let xml = clipboard.get_contents().unwrap();
 
+    if matches.occurrences_of("debug") == 1 {
+        info!("Data in clipboard: ");
+        info!("{}", xml);
+    }
+
     let result = get_enum_from_templates(&xml);
 
+    info!("Generated result (in clipboard): ");
+    info!("{}", result);
+
     clipboard.set_contents(result.to_owned()).unwrap();
+    env::remove_var("T2E_RUST_APP_LOG");
+
+    if matches.occurrences_of("debug") == 1 {
+        trace!("Environment variable T2E_RUST_APP_LOG removed!");
+    }
 }
 
 fn get_enum_from_templates(xml: &String) -> String {
@@ -31,7 +79,6 @@ fn get_enum_from_templates(xml: &String) -> String {
             _ => (),
         }
     }
-    println!("{:?}", format!("enum(\"{}\")", result.join("\", \"")));
     let result = format!("enum(\"{}\")", result.join("\", \""));
     result
 }
@@ -40,6 +87,7 @@ fn get_enum_from_templates(xml: &String) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[test]
     fn test1() {
         let xml = r###"
