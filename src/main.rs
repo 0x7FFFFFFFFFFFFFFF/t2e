@@ -40,16 +40,21 @@ fn main() {
     }
 
     let mut clipboard: ClipboardContext = ClipboardProvider::new().unwrap();
-    let xml = clipboard.get_contents().unwrap();
+    let text = clipboard.get_contents().unwrap();
 
-    if matches.occurrences_of("debug") == 1 {
-        info!("Data in clipboard: ");
-        info!("{}", xml);
+    trace!("Data in clipboard: ");
+    info!("{}", text);
+
+    let mut result = "".to_string();
+
+    if matches.occurrences_of("from-lines") == 1 {
+        trace!("-from-lines: provided");
+        result = get_enum_from_lines(&text);
+    } else {
+        result = get_enum_from_templates(&text);
     }
 
-    let result = get_enum_from_templates(&xml);
-
-    info!("Generated result (in clipboard): ");
+    trace!("Generated result (in clipboard): ");
     info!("{}", result);
 
     clipboard.set_contents(result.to_owned()).unwrap();
@@ -58,6 +63,10 @@ fn main() {
     if matches.occurrences_of("debug") == 1 {
         trace!("Environment variable T2E_RUST_APP_LOG removed!");
     }
+}
+
+fn get_enum_from_lines(text: &String) -> String {
+    format!("enum(\"{}\")", text.lines().map(|line| line.replace("\"", "\\\"")).collect::<Vec<String>>().join("\", \""))
 }
 
 fn get_enum_from_templates(xml: &String) -> String {
@@ -80,10 +89,14 @@ fn get_enum_from_templates(xml: &String) -> String {
         }
     }
     for e in &mut result {
-        *e = e.replace("\"", "\\\"");
+        add_backslash_before_double_quote(e);
     }
     let result = format!("enum(\"{}\")", result.join("\", \""));
     result
+}
+
+fn add_backslash_before_double_quote(s: &mut String) {
+    *s = s.replace("\"", "\\\"");
 }
 
 
@@ -150,5 +163,44 @@ mod tests {
 "###;
         let result = get_enum_from_templates(&xml.to_string());
         assert_eq!(result, "enum(\"mdict_after_\\\"blue'_speaker\", \"mdict_after_red_speaker\")");
+    }
+
+    #[test]
+    fn test4() {
+        let data = r#"g
+3
+g3"#;
+        let result = get_enum_from_lines(&data.to_string());
+        assert_eq!(result, "enum(\"g\", \"3\", \"g3\")")
+    }
+
+    #[test]
+    fn test5() {
+        let data = r#"
+g
+3
+g3
+--------------------------------
+Nothing: the first occurence in every line will be replaced
+g: all occurences will be replaced
+3: the 3rd occurrence will be replaced (count from 1)
+g3 or 3g: occurrence 3, 4, 5, ... will be replaced"#;
+        let result = get_enum_from_lines(&data.to_string());
+        assert_eq!(result, "enum(\"\", \"g\", \"3\", \"g3\", \"--------------------------------\", \"Nothing: the first occurence in every line will be replaced\", \"g: all occurences will be replaced\", \"3: the 3rd occurrence will be replaced (count from 1)\", \"g3 or 3g: occurrence 3, 4, 5, ... will be replaced\")")
+    }
+
+    #[test]
+    fn test6() {
+        let data = r#"
+g
+3
+g"3
+--------------------------------
+No"thing: the first occurence in every line will be replaced
+g: all occurences will be replaced
+3: the 3rd occurrence will be replaced (count from 1)
+g3 or 3g: occurrence 3, 4, 5, ... will be replaced"#;
+        let result = get_enum_from_lines(&data.to_string());
+        assert_eq!(result, "enum(\"\", \"g\", \"3\", \"g\\\"3\", \"--------------------------------\", \"No\\\"thing: the first occurence in every line will be replaced\", \"g: all occurences will be replaced\", \"3: the 3rd occurrence will be replaced (count from 1)\", \"g3 or 3g: occurrence 3, 4, 5, ... will be replaced\")")
     }
 }
