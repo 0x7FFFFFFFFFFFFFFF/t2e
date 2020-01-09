@@ -7,14 +7,17 @@ fn main() {
     let mut clipboard: ClipboardContext = ClipboardProvider::new().unwrap();
     let xml = clipboard.get_contents().unwrap();
 
+    let result = get_enum_from_templates(&xml);
+
+    clipboard.set_contents(result.to_owned()).unwrap();
+}
+
+fn get_enum_from_templates(xml: &String) -> String {
     let mut reader = Reader::from_str(&xml);
     reader.trim_text(true);
-
     let mut count = 0;
     let mut buf = Vec::new();
-
     let mut result: Vec<String> = Vec::new();
-
     loop {
         match reader.read_event(&mut buf) {
             Ok(Event::Start(ref e)) => {
@@ -30,5 +33,7 @@ fn main() {
     }
     println!("{:?}", format!("enum(\"{}\")", result.join("\", \"")));
     let result = format!("enum(\"{}\")", result.join("\", \""));
-    clipboard.set_contents(result.to_owned()).unwrap();
+    result
 }
+
+
